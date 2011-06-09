@@ -123,6 +123,25 @@ class S3ImagesStore(object):
                 headers=self.HEADERS, policy=self.POLICY)
 
 
+class MongoDBImagesStore(object):
+    def __init__(self, uri):
+        assert uri.startswith('mongodb://')
+        from pymongo import Connection
+        import gridfs
+        db = Connection().scrapy
+        self._fs = gridfs.GridFS(db)
+
+    def stat_image(self, key, info):
+        f = self._fs.get_last_version(filename=key)
+        modified_tuple = rfc822.parsedate_tz(f.upload_date)
+        modified_stamp = int(rfc822.mktime_tz(modified_tuple))
+        return {'last_modified': modified_stamp, 'checksum': f.md5}
+
+    def persist_image(self, key, image, buf, info):
+        buf.seek(0)
+        self._fs.put(buf, filename=key)
+
+
 class ImagesPipeline(MediaPipeline):
     """Abstract pipeline that implement the image downloading and thumbnail generation logic
 
@@ -151,6 +170,7 @@ class ImagesPipeline(MediaPipeline):
             '': FSImagesStore,
             'file': FSImagesStore,
             's3': S3ImagesStore,
+            'mongodb': MongoDBImagesStore,
             }
 
     def __init__(self, store_uri, download_func=None):
