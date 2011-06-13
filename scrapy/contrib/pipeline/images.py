@@ -128,16 +128,24 @@ class MongoDBImagesStore(object):
         assert uri.startswith('mongodb://')
         from pymongo import Connection
         import gridfs
-        db = Connection().scrapy
+        db = Connection(uri).mdd
         self._fs = gridfs.GridFS(db)
 
     def stat_image(self, key, info):
+        if not self._fs.exists(filename=key):
+            return {}
         f = self._fs.get_last_version(filename=key)
-        modified_tuple = rfc822.parsedate_tz(f.upload_date)
-        modified_stamp = int(rfc822.mktime_tz(modified_tuple))
-        return {'last_modified': modified_stamp, 'checksum': f.md5}
+        mtime = time.mktime(f.upload_date.timetuple())
+        return {'last_modified': mtime, 'checksum': f.md5}
 
     def persist_image(self, key, image, buf, info):
+        if self._fs.exists(filename=key):
+            f = self._fs.get_last_version(filename=key)
+            buf.seek(0)
+            checksum = md5sum(buf)
+            if checksum == f.md5:
+                print("file %s already existed" % key)
+                return
         buf.seek(0)
         self._fs.put(buf, filename=key)
 
@@ -249,7 +257,7 @@ class ImagesPipeline(MediaPipeline):
 
             age_seconds = time.time() - last_modified
             age_days = age_seconds / 60 / 60 / 24
-            if age_days > self.EXPIRES:
+            if age_days < self.EXPIRES:
                 return # returning None force download
 
             referer = request.headers.get('Referer')
