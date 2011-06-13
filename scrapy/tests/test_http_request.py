@@ -42,6 +42,9 @@ class RequestTest(unittest.TestCase):
         assert r.headers is not headers
         self.assertEqual(r.headers["caca"], "coco")
 
+    def test_url_no_scheme(self):
+        self.assertRaises(ValueError, self.request_class, 'foo')
+
     def test_headers(self):
         # Different ways of setting headers attribute
         url = 'http://www.scrapy.org'
@@ -139,7 +142,7 @@ class RequestTest(unittest.TestCase):
         class CustomRequest(self.request_class):
             pass
 
-        r1 = CustomRequest('example.com', 'http://www.example.com')
+        r1 = CustomRequest('http://www.example.com')
         r2 = r1.copy()
 
         assert type(r2) is CustomRequest
